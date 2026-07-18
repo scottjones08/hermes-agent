@@ -1,0 +1,6 @@
+name: mudanza-provider
+kind: model-provider
+version: 0.1.0
+description: Mudanza firm-governed model router
+author: "Scott Jones (@scottjones08), Hermes Agent"
+

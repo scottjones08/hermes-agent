@@ -1,0 +1,10 @@
+name: mudanza_firm_learning
+version: 0.1.0
+description: "Sends de-identified learning signals to Mudanza."
+author: "Scott Jones (@scottjones08), Hermes Agent"
+kind: standalone
+platforms:
+  - linux
+  - macos
+  - windows
+
