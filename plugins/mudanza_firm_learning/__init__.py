@@ -44,7 +44,7 @@ def _events_url() -> str:
         return explicit.rstrip("/")
     router = os.getenv(
         "MUDANZA_ROUTER_BASE_URL",
-        "https://tessara-prod-func.azurewebsites.net/api/hermes/v1",
+        "https://tessara-prod-functions.azurewebsites.net/api/hermes/v1",
     ).rstrip("/")
     if router.endswith("/hermes/v1"):
         router = router[: -len("/hermes/v1")]
@@ -193,4 +193,3 @@ def register(ctx: Any) -> None:
     ctx.register_hook("post_llm_call", on_post_llm_call)
     ctx.register_hook("post_tool_call", on_post_tool_call)
     ctx.register_hook("post_approval_response", on_post_approval_response)
-

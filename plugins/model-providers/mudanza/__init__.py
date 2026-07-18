@@ -11,7 +11,7 @@ from providers.base import ProviderProfile
 def _base_url() -> str:
     return os.getenv(
         "MUDANZA_ROUTER_BASE_URL",
-        "https://tessara-prod-func.azurewebsites.net/api/hermes/v1",
+        "https://tessara-prod-functions.azurewebsites.net/api/hermes/v1",
     ).rstrip("/")
 
 
@@ -28,4 +28,3 @@ mudanza = ProviderProfile(
 )
 
 register_provider(mudanza)
-
