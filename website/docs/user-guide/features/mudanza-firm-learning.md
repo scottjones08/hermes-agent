@@ -12,7 +12,7 @@ The raw token is shown once. Store it in the Hermes profile environment:
 
 ```bash
 MUDANZA_FIRM_LEARNING_TOKEN=mfl_...
-MUDANZA_ROUTER_BASE_URL=https://tessara-prod-func.azurewebsites.net/api/hermes/v1
+MUDANZA_ROUTER_BASE_URL=https://tessara-prod-functions.azurewebsites.net/api/hermes/v1
 MUDANZA_FIRM_LEARNING_ENABLED=true
 ```
 
