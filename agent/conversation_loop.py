@@ -1473,6 +1473,34 @@ def _run_conversation_turn(
     except Exception:
         logger.debug("per-turn env credential refresh failed", exc_info=True)
 
+    # TIP-001: Lightweight Jev hop classification BEFORE build_turn_context
+    # This classifies the user message and sets agent._tip001_skills for skill injection
+    try:
+        _tip001_user_msg = user_message if isinstance(user_message, str) else (persist_user_message or str(user_message))
+        if _tip001_user_msg:
+            from agent.tip001_skill_route import get_skill_injection_context, record_tip001_receipt
+            _tip001_result = get_skill_injection_context(_tip001_user_msg)
+            if _tip001_result:
+                agent._tip001_skills = _tip001_result.get("skills_to_inject", [])
+                agent._tip001_route = _tip001_result.get("route", "general")
+                agent._tip001_confidence = _tip001_result.get("confidence", 0.0)
+                # Record receipt for Trust/Evidence
+                try:
+                    record_tip001_receipt(
+                        session_id=getattr(agent, "session_id", "unknown"),
+                        turn_id=getattr(agent, "_turn_count", 0) + 1,
+                        user_message=_tip001_user_msg,
+                        classification=_tip001_result,
+                        main_model=getattr(agent, "model", "unknown"),
+                    )
+                except Exception:
+                    pass  # Evidence recording should not block the turn
+                logger.info("TIP-001: Classified route=%s confidence=%.2f skills=%s",
+                           agent._tip001_route, agent._tip001_confidence, agent._tip001_skills)
+    except Exception as _tip001_err:
+        logger.debug("TIP-001 classification failed: %s", _tip001_err)
+        agent._tip001_skills = []
+
     # Per-turn setup: build_turn_context mutates ``agent`` and returns the locals the loop reads.
     try:
         _ctx = build_turn_context(
@@ -1516,6 +1544,29 @@ def _run_conversation_turn(
         max_compression_attempts=getattr(agent, "max_compression_attempts", 3),
         **{f.name: getattr(_ctx, f.name.lstrip("_")) for f in fields(_LoopState) if f.name in _CTX_FIELDS},
     )
+
+    # TIP-001: Load skills based on Jev hop classification BEFORE the main model runs.
+    # This injects skills identified by the lightweight classification into the turn context.
+    _tip001_skills_to_load = getattr(agent, "_tip001_skills", None)
+    if _tip001_skills_to_load:
+        try:
+            from agent.skill_commands import build_preloaded_skills_prompt
+            _skill_prompt, _loaded_names, _missing = build_preloaded_skills_prompt(
+                _tip001_skills_to_load,
+                task_id=s.effective_task_id,
+                excluded_loaded_names=set(getattr(agent, "_loaded_skill_names", set())),
+            )
+            if _skill_prompt:
+                # Inject skill blocks into the system prompt for this turn
+                s.active_system_prompt = (s.active_system_prompt or "") + "\n\n" + _skill_prompt
+                # Track loaded skills to avoid duplicates in this turn
+                agent._loaded_skill_names = getattr(agent, "_loaded_skill_names", set()) | set(_loaded_names)
+                logger.info("TIP-001: Injected %d skills: %s", len(_loaded_names), _loaded_names)
+            if _missing:
+                logger.warning("TIP-001: Skills not found: %s", _missing)
+        except Exception as _tip001_err:
+            logger.warning("TIP-001: Skill injection failed: %s", _tip001_err)
+
     # Opt-in runtime: api_mode == codex_app_server hands the whole turn to the codex
     # app-server subprocess (see agent/transports/codex_app_server_session.py).
     if agent.api_mode == "codex_app_server":
