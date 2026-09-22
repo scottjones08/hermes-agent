@@ -1547,6 +1547,7 @@ def _run_conversation_turn(
 
     # TIP-001: Load skills based on Jev hop classification BEFORE the main model runs.
     # This injects skills identified by the lightweight classification into the turn context.
+    # Skills are injected via a user message (not system prompt) to keep prompt cache byte-stable.
     _tip001_skills_to_load = getattr(agent, "_tip001_skills", None)
     if _tip001_skills_to_load:
         try:
@@ -1557,11 +1558,18 @@ def _run_conversation_turn(
                 excluded_loaded_names=set(getattr(agent, "_loaded_skill_names", set())),
             )
             if _skill_prompt:
-                # Inject skill blocks into the system prompt for this turn
-                s.active_system_prompt = (s.active_system_prompt or "") + "\n\n" + _skill_prompt
+                # Inject skill blocks via a user message (cache-byte-stable).
+                # Insert after system prompt but before any other messages.
+                _skill_user_message = {"role": "user", "content": _skill_prompt}
+                # Find insertion point: after system message (if any), at start of messages list
+                _insert_idx = 1 if (s.messages and s.messages[0].get("role") == "system") else 0
+                s.messages.insert(_insert_idx, _skill_user_message)
+                # Adjust current_turn_user_idx since we inserted before it
+                if s.current_turn_user_idx is not None:
+                    s.current_turn_user_idx += 1
                 # Track loaded skills to avoid duplicates in this turn
                 agent._loaded_skill_names = getattr(agent, "_loaded_skill_names", set()) | set(_loaded_names)
-                logger.info("TIP-001: Injected %d skills: %s", len(_loaded_names), _loaded_names)
+                logger.info("TIP-001: Injected %d skills via user message: %s", len(_loaded_names), _loaded_names)
             if _missing:
                 logger.warning("TIP-001: Skills not found: %s", _missing)
         except Exception as _tip001_err:
